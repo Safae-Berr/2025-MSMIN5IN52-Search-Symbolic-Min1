@@ -33,6 +33,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # --- AJOUT CRUCIAL ICI ---
+    env_file:
+      - .env
+    # -------------------------
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB}"
     networks:

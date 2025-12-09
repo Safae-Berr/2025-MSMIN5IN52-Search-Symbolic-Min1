@@ -1,5 +1,10 @@
 FROM python:3.9-slim
 
+# Nécessaire pour faire tourner TweetyProject
+RUN apt-get update && \
+    apt-get install -y default-jre && \
+    apt-get clean;
+
 WORKDIR /app
 
 COPY requirements.txt .
