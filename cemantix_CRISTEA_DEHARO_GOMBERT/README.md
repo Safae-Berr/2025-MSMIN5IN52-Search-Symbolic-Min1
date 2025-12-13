@@ -57,14 +57,14 @@ Le modèle spaCy détermine la qualité du calcul de similarité sémantique. Vo
 | Modèle | Taille | Qualité | Vitesse | Recommandation |
 |--------|--------|---------|---------|----------------|
 | `fr_core_news_sm` | ~40 MB | Basique | ⚡ Très rapide | Tests rapides |
-| `fr_core_news_md` | ~100 MB | Bonne | ⚡ Rapide | Équilibre |
+| `fr_core_news_md` | ~100 MB | Bonne | ⚡ Rapide | Équilibre/Utilisé |
 | `fr_core_news_lg` | ~500 MB | 🌟 Excellente | Normal | **Recommandé** |
 
 **Installation du modèle** :
 ```bash
 # Télécharger et installer le modèle (choisissez 1)
-python -m spacy download fr_core_news_lg    # Recommandé (meilleure qualité)
-# python -m spacy download fr_core_news_md  # Bon équilibre
+# python -m spacy download fr_core_news_lg    # Recommandé (meilleure qualité)
+python -m spacy download fr_core_news_md  # Bon équilibre/Utilisé
 # python -m spacy download fr_core_news_sm  # Léger / rapide
 ```
 
@@ -74,8 +74,8 @@ Modifiez la ligne 9 du fichier [`backend/app/game.py`](backend/app/game.py) :
 
 ```python
 # Changez selon le modèle que vous avez téléchargé
-nlp = spacy.load("fr_core_news_lg")    # Recommandé
-# nlp = spacy.load("fr_core_news_md")  # Alternatif
+# nlp = spacy.load("fr_core_news_lg")    # Recommandé
+nlp = spacy.load("fr_core_news_md")  # Alternatif/Utilisé
 # nlp = spacy.load("fr_core_news_sm")  # Léger
 ```
 
@@ -101,6 +101,8 @@ npm install
 
 # Lancer le serveur de développement
 ng serve
+# ou
+npm start
 
 # Ou pour le build production
 ng build
