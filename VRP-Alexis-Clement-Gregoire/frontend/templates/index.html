@@ -334,18 +334,30 @@
             <div class="section">
                 <h2>Configuration</h2>
                 <label>Nombre de véhicules:</label>
+                <p style="font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 8px;">
+                    Nombre de véhicules disponibles pour effectuer les livraisons
+                </p>
                 <input type="number" id="nb-vehicules" value="2" min="1" max="10">
                 
                 <label>Capacité par véhicule:</label>
+                <p style="font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 8px;">
+                    Quantité maximale que chaque véhicule peut transporter (1 client = 10 unités de capacité)
+                </p>
                 <input type="number" id="capacite" value="50" min="1">
                 
                 <label>Type de VRP:</label>
+                <p style="font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 8px;">
+                    Classique : véhicules à essence<br>Vert : véhicules électriques
+                </p>
                 <select id="type-vrp">
                     <option value="classique">Classique</option>
                     <option value="vert">Vert (Électrique)</option>
                 </select>
                 
                 <label>Temps limite (secondes):</label>
+                <p style="font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 8px;">
+                    Durée maximale allouée à l'algorithme pour trouver une solution
+                </p>
                 <input type="number" id="limite-temps" value="30" min="5" max="300">
             </div>
             
