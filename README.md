@@ -45,11 +45,18 @@ Puis ouvrir http://localhost:8501. Streamlit demarre automatiquement, le solveur
 - Hover detaille: job, operation, machine, duree, start/end.
 - Makespan affiche (ligne verticale) et metrics solveur (wall time, bornes, conflits, branches).
 - Controle de zoom temporel, export PNG du Gantt dans `output/gantt.png`.
+- Section “Insights pedagogiques” : delta de makespan vs baseline, conflits CP-SAT (difficulte de recherche) et utilisation par ressource.
 
 ## Instances fournies (3 jobs x 3 machines)
 - `didactic_3x3`: ordre entrelace pour illustrer les conflits machines.
 - `alternating_3x3`: permutation des machines pour observer l'impact de l'ordre.
 Les sequences sont definies en dur dans `src/data.py` et extensibles.
+
+## Scenarios demo (UI)
+- `preparation_commandes` (baseline simpliste): flux nominal (picking, etiquetage, emballage).
+- `preparation_commandes_maintenance` (scenario complique): maintenance planifiee sur emballage et imprimante.
+- `preparation_commandes_rush` (scenario rush): commande flash R99 a insérer en priorite.
+Delta de makespan vs baseline et utilisation des machines a lire dans les “Insights pedagogiques”.
 
 ## Ajouter une instance
 Dans `src/data.py`, ajouter un dictionnaire `job_sequences` (machine, duree) puis appeler `_make_instance`:

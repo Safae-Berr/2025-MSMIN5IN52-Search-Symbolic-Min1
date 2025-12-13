@@ -1,5 +1,6 @@
 """Streamlit front-end for interactive Job-Shop analysis."""
 
+import pandas as pd
 import streamlit as st
 
 from data import JobShopInstance, get_instances, instance_horizon
@@ -20,6 +21,14 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# Simple cache to avoid re-solving identical instances repeatedly during UI exploration.
+@st.cache_data(show_spinner=False)
+def cached_solve(instance_name: str, time_limit: float | None, num_workers: int = 8) -> SolutionResult:
+    instances = get_instances()
+    instance = instances[instance_name]
+    return solve(instance=instance, time_limit=time_limit, num_workers=num_workers)
 
 
 def describe_instance(instance: JobShopInstance):
@@ -53,6 +62,21 @@ def describe_instance(instance: JobShopInstance):
                 }
             )
     st.dataframe(rows, use_container_width=True, hide_index=True)
+
+def machine_utilization(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute per-machine load and utilization."""
+    if df.empty:
+        return pd.DataFrame(columns=["machine", "workload", "utilisation_%", "horizon"])
+    horizon = df["end"].max()
+    util = (
+        df.groupby("machine")["duration"]
+        .sum()
+        .reset_index()
+        .rename(columns={"duration": "workload"})
+    )
+    util["utilisation_%"] = (util["workload"] / horizon * 100).round(1)
+    util["horizon"] = horizon
+    return util
 
 
 def show_solution(solution: SolutionResult, zoom_max: int):
@@ -88,6 +112,32 @@ def show_solution(solution: SolutionResult, zoom_max: int):
         st.warning("Aucune figure a afficher (solution vide).")
 
 
+def show_insights(solution: SolutionResult, baseline: SolutionResult | None):
+    st.subheader("Insights pedagogiques")
+    current_ms = solution.makespan or 0
+    base_ms = baseline.makespan if baseline else None
+    delta = None if base_ms is None else current_ms - base_ms
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Makespan scenario", f"{current_ms} unites")
+    if base_ms is not None:
+        col2.metric("Delta vs baseline", f"{delta:+} unites", delta=delta)
+    else:
+        col2.metric("Delta vs baseline", "N/A")
+    col3.metric("Conflits CP-SAT", f"{solution.solver_statistics.get('conflicts', 0):.0f}")
+
+    df = operations_dataframe(solution)
+    util = machine_utilization(df)
+    if not util.empty:
+        st.markdown("Utilisation par ressource (sur le planning obtenu)")
+        st.dataframe(util, hide_index=True, use_container_width=True)
+    with st.expander("Comment lire ces resultats ?", expanded=False):
+        st.markdown(
+            "- Le delta de makespan montre l'effet des contraintes (maintenance ou rush) par rapport au flux nominal.\n"
+            "- Les conflits CP-SAT refletent la difficulte de la recherche (plus il y en a, plus le probleme est serre).\n"
+            "- L'utilisation par ressource indique les goulets d'etranglement (utilisation proche de 100%)."
+        )
+
+
 def main():
     st.title("Ordonnancement Job-Shop par CSP (OR-Tools CP-SAT)")
     st.markdown(
@@ -111,10 +161,11 @@ def main():
         )
     with st.expander("Mode d'emploi rapide", expanded=True):
         st.markdown(
-            "1. Selectionnez un scenario (simpliste ou complique) dans le menu de gauche.\n"
+            "1. Selectionnez un **scenario** (simpliste, maintenance, rush) dans le menu de gauche.\n"
             "2. Cliquez sur **Resoudre / Recalculer**.\n"
-            "3. Observez le Gantt et les metrics (makespan, conflits CP-SAT).\n"
-            "4. Changez de scenario pour voir l'impact des contraintes (maintenance, commande flash)."
+            "3. Lisez la section **Insights pedagogiques** pour comprendre l'impact sur le makespan et l'utilisation machines.\n"
+            "4. Observez le Gantt et les metrics solveur (makespan, conflits CP-SAT).\n"
+            "5. Changez de scenario pour comparer: les deltas vs baseline s'ajustent automatiquement."
         )
 
     instances = get_instances()
@@ -124,6 +175,7 @@ def main():
         "preparation_commandes_maintenance": "Scenario complique (maintenance planifiee)",
         "preparation_commandes_rush": "Scenario rush (commande flash R99)",
     }
+    baseline_key = "preparation_commandes"
 
     with st.sidebar:
         st.header("Configuration solveur")
@@ -165,7 +217,9 @@ def main():
 
     if run_requested:
         with st.spinner("Resolution en cours..."):
-            solution = solve(instance=instance, time_limit=time_limit if time_limit > 0 else None)
+            solution = cached_solve(chosen, time_limit if time_limit > 0 else None)
+            baseline_solution = cached_solve(baseline_key, time_limit if time_limit > 0 else None)
+        show_insights(solution, baseline_solution)
         show_solution(solution, zoom_max=zoom_max)
 
 
