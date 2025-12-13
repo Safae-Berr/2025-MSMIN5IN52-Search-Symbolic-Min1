@@ -98,8 +98,9 @@ L'application démarre sur `http://localhost:5000`
 - **Nombre de véhicules** : nombre de véhicules disponibles
 - **Type VRP** : classique ou vert (électrique)
 - **Capacité** : capacité maximale de chaque véhicule (1 client = 10 unités de capacité par défaut)
-- **Autonomie** : autonomie maximale de la batterie des véhicules électriques
+- **Autonomie** : autonomie maximale de la batterie des véhicules électriques (10 km par défaut)
 - **Taille des colis** : taille de chaque colis pour chaque client
+- **Fenêtres temporelles** : heure de début et fin de disponibilité pour chaque client (par défaut 8h00-20h00, par tranches de 10 minutes)
 - **Mode de raisonnement** : mode de raisonnement qui gère le temps de résolution (rapide, normal, exploratoire)
 
 ---
@@ -133,8 +134,9 @@ Soit :
 
 Extension du VRP avec :
 - **Contraintes de capacité** : $\sum_{i \in T_k} q_i \leq Q$ pour chaque tournée $T_k$
-- **Fenêtres temporelles** : chaque client $i$ doit être visité dans $[a_i, b_i]$
-- **Temps de service** : temps nécessaire pour servir chaque client
+- **Fenêtres temporelles** : chaque client $i$ doit être visité dans $[a_i, b_i]$ (configurable dans l'interface)
+- **Temps de service** : temps constant de 10 minutes par client (10 unités de temps)
+- **Conversion distance-temps** : 1 km parcouru = 5 minutes de trajet (5 unités de temps)
 
 #### VRP Vert (E-VRP)
 
@@ -233,15 +235,26 @@ Cette méthode permet de calculer des distances précises sur la surface de la T
    model.Add(temps_arrivee[j, k] >= debut)
    model.Add(temps_arrivee[j, k] <= fin)
    ```
+   - Les fenêtres temporelles sont configurables dans l'interface (8h00-20h00 par défaut, par tranches de 10 minutes)
+   - Le temps de référence 0 correspond à 8h00 du matin
+   - Si un véhicule arrive avant le début de la fenêtre, il attend jusqu'à l'ouverture
 
-5. **Anti-sous-tours** : position croissante le long de la tournée
+5. **Contraintes temporelles de trajet** : temps d'arrivée = temps départ + temps trajet + temps service
+   ```python
+   # 1 km = 5 minutes (5 unités de temps)
+   dist = int(self.distances[i][j] * 5)
+   temps_serv = 10  # 10 minutes par défaut
+   model.Add(temps_arrivee[j, k] >= temps_arrivee[i, k] + temps_serv + dist - ...)
+   ```
+
+6. **Anti-sous-tours** : position croissante le long de la tournée
    ```python
    model.Add(
        position[j, k] >= position[i, k] + 1 - self.n * (1 - x[i, j, k])
    )
    ```
 
-6. **Contraintes de batterie** (VRP vert) : consommation et recharge
+7. **Contraintes de batterie** (VRP vert) : consommation et recharge
    ```python
    # consommation lors du trajet
    model.Add(batterie[j, k] <= batterie[i, k] - consommation_ij + ...)
@@ -282,7 +295,27 @@ capacites_vehicules = [50, 75, 100]  # pour 3 véhicules
 autonomies_vehicules = [30.0, 40.0, 50.0]  # en kilomètres
 ```
 
-#### 5. Indexation spéciale pour VRP vert
+#### 5. Gestion du temps et des horaires
+
+**Système de temps** :
+- **Unité de temps** : 1 unité = 1 minute
+- **Référence temporelle** : 0 unité = 8h00 du matin
+- **Conversion distance-temps** : 1 km parcouru = 5 minutes (5 unités)
+- **Temps de service** : 10 minutes (10 unités) par client par défaut
+
+**Calcul des horaires d'arrivée** :
+Les horaires d'arrivée sont calculés dans le frontend à partir des tournées retournées par le solveur :
+- Départ du dépôt : toujours 8h00 (0 unité)
+- Pour chaque nœud suivant : `temps_arrivée = temps_précédent + temps_service + distance × 5`
+- Si arrivée avant la fenêtre temporelle : attente jusqu'au début de la fenêtre
+- Les horaires sont affichés au format HH:MM
+
+**Affichage des résultats** :
+- **Horaires par livreur** : distance parcourue, heure de début (8h00), heure de fin de tournée, itinéraire complet avec horaires d'arrivée à chaque point
+- **Horaires de livraison par client** : heure d'arrivée et véhicule responsable pour chaque client
+- **Couleurs** : chaque livreur a une couleur unique (rouge, bleu, vert, etc.) visible à la fois sur la carte et dans les résultats
+
+#### 6. Indexation spéciale pour VRP vert
 
 Pour le VRP vert, les nœuds sont indexés de manière spéciale :
 - Index 0 : dépôt
@@ -295,11 +328,6 @@ Cette organisation permet de distinguer facilement les types de nœuds dans les 
 
 - **Complexité théorique** : NP-difficile
 - **Complexité pratique** : O($n! \cdot K$) dans le pire cas, mais les solveurs modernes utilisent des heuristiques efficaces
-- **Temps de résolution typique** :
-  - 5 clients, 1 véhicule : < 1s
-  - 10 clients, 2 véhicules : 2-5s
-  - 15 clients, 3 véhicules : 10-30s
-  - 20+ clients : 30s+ (limite de temps)
 
 ---
 
@@ -396,6 +424,10 @@ Cette organisation permet de distinguer facilement les types de nœuds dans les 
 
 10. **Visualisation** : une fois la solution obtenue, les tournées sont affichées sur la carte Leaflet avec des couleurs différentes par véhicule.
 
+11. **Calcul des horaires** : le frontend calcule les horaires d'arrivée réels à partir des distances Haversine, en respectant les contraintes temporelles (1 km = 5 min, 10 min de service par client).
+
+12. **Affichage des résultats** : une fenêtre de résultats détaillée affiche pour chaque livreur sa distance, ses horaires de début/fin, son itinéraire complet, et un résumé des horaires de livraison par client.
+
 ---
 
 ## 🔮 Améliorations possibles
@@ -458,6 +490,8 @@ Classe `VRPClassique` qui implémente :
 - Variables booléennes `x[i,j,k]` : véhicule $k$ va de $i$ à $j$
 - Variables entières pour position, temps, charge
 - Contraintes de conservation de flux et élimination de sous-tours
+- **Conversion distance-temps** : distances multipliées par 5 pour obtenir le temps de trajet (1 km = 5 min)
+- **Temps de service** : 10 minutes (10 unités) par défaut pour chaque client
 
 #### `backend/vrp_vert.py`
 Classe `VRPVert` qui étend le VRP classique avec :
@@ -489,6 +523,13 @@ Interface web interactive avec :
 - Gestion des événements de clic (dépôt, clients, stations)
 - Communication AJAX avec le backend
 - Affichage dynamique des tournées et statistiques
+- **Configuration des fenêtres temporelles** : sélecteurs d'heures (8h-20h) et minutes (par tranches de 10) pour chaque client
+- **Calcul des horaires d'arrivée** : fonction `calculerHorairesArrivee()` qui calcule les horaires réels à partir des distances Haversine
+- **Affichage détaillé des résultats** :
+  - Horaires par livreur avec distance, début/fin de tournée, itinéraire complet
+  - Horaires de livraison par client
+  - Bande colorée correspondant à la couleur du tracé sur la carte
+  - Fenêtre de résultats réductible en bulle
 
 ---
 
