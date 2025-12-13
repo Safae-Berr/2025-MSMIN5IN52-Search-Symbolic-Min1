@@ -66,13 +66,12 @@ def solve_vrp():
     limite_temps = data.get('limite_temps', 30)
     type_vrp = data.get('type', 'classique')  # 'classique' ou 'vert'
     
-    # capacités par véhicule (nouveau)
+    # capacités par véhicule
     capacites_vehicules = data.get('capacites_vehicules', [50] * nombre_vehicules)
     if len(capacites_vehicules) < nombre_vehicules:
-        # compléter avec la dernière valeur ou 50 par défaut
         derniere_capacite = capacites_vehicules[-1] if capacites_vehicules else 50
         capacites_vehicules.extend([derniere_capacite] * (nombre_vehicules - len(capacites_vehicules)))
-    capacites_vehicules = capacites_vehicules[:nombre_vehicules]  # limiter au nombre de véhicules
+    capacites_vehicules = capacites_vehicules[:nombre_vehicules]
     
     # génération des paramètres par défaut
     demandes = data.get('demandes', [10] * len(clients))
