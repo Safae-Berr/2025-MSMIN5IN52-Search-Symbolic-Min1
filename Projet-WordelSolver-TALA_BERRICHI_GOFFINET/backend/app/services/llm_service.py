@@ -1,81 +1,112 @@
-# backend/app/services/llm_service.py
-from typing import List, Dict, Optional, Tuple
 import os
+import time
 import requests
+from typing import List, Dict, Optional, Tuple
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class GeminiLLM:
-    """
-    Service d'intégration d'un LLM (Google Gemini / AI Studio) pour suggérer des mots Wordle
-    """
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-1.5-mini"):
-        # Clé API
+    """Service Gemini Wordle optimisé pour économiser le quota."""
+
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-flash-latest"):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("La clé API Gemini n'est pas définie (GEMINI_API_KEY)")
         self.model = model
-        # Endpoint pour Gemini / PaLM API
-        self.endpoint = f"https://generativelanguage.googleapis.com/v1beta2/models/{self.model}:generateMessage"
+        self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
     def suggest_word(
         self,
         candidates: List[str],
         feedback_history: Optional[List[Dict]] = None,
         word_length: int = 5,
-        language: str = "fr"
+        language: str = "fr",
+        max_retries: int = 3,
+        max_candidates_prompt: int = 30,
+        max_output_tokens: int = 50
     ) -> Tuple[str, str]:
-        """
-        Retourne le mot suggéré par le LLM selon les candidats filtrés et les feedbacks précédents.
+        """Retourne le mot suggéré par le LLM avec optimisation et retry"""
 
-        Args:
-            candidates: liste des mots valides filtrés par CSP
-            feedback_history: liste de feedbacks précédents au format {green, yellow, grey}
-            word_length: longueur du mot
-            language: "fr" ou "en"
-
-        Returns:
-            (mot_suggere, explication)
-        """
         feedback_history = feedback_history or []
+        candidates = [c for c in candidates if len(c) == word_length]
+        if not candidates:
+            raise ValueError("Aucun candidat de la longueur demandée")
 
-        # Construire le prompt pour le LLM
+        # Limiter le nombre de candidats dans le prompt
+        prompt_candidates = candidates[:max_candidates_prompt]
+
         prompt = f"""
-Tu es un expert Wordle {language.upper()}.
-Tu dois proposer le mot suivant à deviner parmi une liste de candidats.
-Liste des candidats possibles (max 50 affichés): {', '.join(candidates[:50])}...
-Feedbacks précédents: {feedback_history}
+Tu es un expert Wordle en {language.upper()}.
+Choisis **UN SEUL mot** de {word_length} lettres parmi cette liste de candidats : {', '.join(prompt_candidates)}.
 
-Répond uniquement par le mot suivant à deviner et donne une courte explication de ton choix.
+⚠️ IMPORTANT :
+- Le mot doit avoir exactement {word_length} lettres.
+- Le mot doit être présent dans la liste des candidats.
+- Réponds uniquement dans ce format :
+
+MOT: [le mot choisi]
+EXPLICATION: [courte raison]
+
+Choisis le mot avec les lettres les plus fréquentes et distinctes.
 """
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
+        headers = {"Content-Type": "application/json"}
         payload = {
-            "prompt": {
-                "messages": [
-                    {"author": "user", "content": prompt}
-                ]
-            },
-            "temperature": 0.2,
-            "max_output_tokens": 20
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": max_output_tokens
+            }
         }
 
-        # Appel HTTP vers Gemini
-        try:
-            response = requests.post(self.endpoint, json=payload, headers=headers)
-            response.raise_for_status()
-        except requests.RequestException as e:
-            raise ConnectionError(f"Erreur de connexion au LLM Gemini: {e}")
+        retries = 0
+        while retries <= max_retries:
+            try:
+                response = requests.post(self.endpoint, json=payload, headers=headers, timeout=10)
+                response.raise_for_status()
+                data = response.json()
 
-        try:
-            data = response.json()
-            # Extraction du mot et de l'explication depuis la réponse
-            content = data['candidates'][0]['content'][0]['text'].strip()
-            parts = content.split(None, 1)  # Séparer le mot et l'explication
-            word = parts[0].lower()
-            explanation = parts[1].strip() if len(parts) > 1 else "Aucune explication fournie"
-            return word, explanation
-        except (KeyError, IndexError, Exception) as e:
-            raise ValueError(f"Impossible d'extraire le mot du LLM Gemini: {e}")
+                # Extraction robuste du texte
+                content = ""
+                candidates_list = data.get("candidates", [])
+                if candidates_list:
+                    content_dict = candidates_list[0].get("content", {})
+                    if "parts" in content_dict and content_dict["parts"]:
+                        content = content_dict["parts"][0].get("text", "").strip()
+                    elif "text" in content_dict:
+                        content = content_dict["text"].strip()
+                    elif "outputText" in content_dict:
+                        content = content_dict["outputText"].strip()
+
+                if not content:
+                    return candidates[0].lower(), "Mot par défaut (LLM n'a pas renvoyé de texte)"
+
+                # Parse mot et explication
+                word = None
+                explanation = "Suggestion basée sur l'analyse des lettres"
+                for line in content.split("\n"):
+                    if line.upper().startswith("MOT:"):
+                        word = line.split(":", 1)[1].strip().lower()
+                    elif line.upper().startswith("EXPLICATION:"):
+                        explanation = line.split(":", 1)[1].strip()
+
+                # Validation stricte
+                if not word or len(word) != word_length or word.lower() not in [c.lower() for c in candidates]:
+                    word = candidates[0].lower()
+                    explanation = "Mot par défaut (LLM n'a pas choisi un candidat valide)"
+
+                return word, explanation
+
+            except requests.HTTPError as e:
+                if e.response.status_code == 429:
+                    wait = 2 ** retries
+                    print(f"⚠️ Quota atteint. Retry dans {wait}s...")
+                    time.sleep(wait)
+                    retries += 1
+                    continue
+                return candidates[0].lower(), f"Erreur API, mot par défaut: {str(e)}"
+            except Exception as e:
+                return candidates[0].lower(), f"Erreur parsing ou connexion, mot par défaut: {str(e)}"
+
+        return candidates[0].lower(), "Mot par défaut après plusieurs tentatives (quota dépassé)"
