@@ -20,13 +20,14 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+
+# Virtual Environment
 venv/
-ENV/
 env/
+ENV/
 .venv
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -71,3 +72,11 @@ frontend/.vite
 # Backend
 backend/__pycache__
 backend/*.pyc
+
+# FastAPI / uvicorn
+*.log
+
+# OR-Tools temporary files
+*.mps
+*.lp
+
