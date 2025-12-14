@@ -14,6 +14,7 @@ import { takeUntil, filter, map } from 'rxjs/operators';
 })
 export class AppComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  showNavbar: boolean = true; // Default to true
 
   constructor(
     private router: Router,
@@ -35,9 +36,13 @@ export class AppComponent implements OnInit, OnDestroy {
       filter(route => route.outlet === 'primary'),
       takeUntil(this.destroy$)
     ).subscribe(route => {
+      // Determine if navbar should be shown
+      this.showNavbar = !(route.snapshot.url.length === 0 || route.snapshot.url[0].path === '');
+
+      // Apply background classes
       this.document.body.classList.remove('homepage-background', 'debate-background');
 
-      if (route.snapshot.url.length === 0 || route.snapshot.url[0].path === '') {
+      if (!this.showNavbar) { // If it's the homepage
         this.renderer.addClass(this.document.body, 'homepage-background');
       } else if (route.snapshot.url[0].path === 'debates') {
         this.renderer.addClass(this.document.body, 'debate-background');
