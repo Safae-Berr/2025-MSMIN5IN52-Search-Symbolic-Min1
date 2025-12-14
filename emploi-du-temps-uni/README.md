@@ -2,6 +2,12 @@
 
 Ce projet implémente un système de planification d'emploi du temps pour cours et examens universitaires en utilisant MiniZinc pour la modélisation par contraintes.
 
+## Groupe 7
+
+### Marilson SOUZA
+### Brenda KOUNDJO
+### Xiner GU
+
 ## Prérequis
 
 - Python 3.8 ou supérieur
