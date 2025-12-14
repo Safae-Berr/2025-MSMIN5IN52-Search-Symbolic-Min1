@@ -1,5 +1,6 @@
 import ollama
 import re
+import random
 from src.prior import get_word_list
 
 class LLMSolver:
@@ -38,16 +39,23 @@ class LLMSolver:
                 # Find all 5-letter words in the response
                 potential_words = re.findall(r'\b[a-zA-Z]{5}\b', response_text.lower())
                 
+                if not potential_words:
+                    print(f"LLM proposed: '{response_text}'. No 5-letter words found in response. Retrying...")
+                    continue # Go to next attempt
+
                 for word in potential_words:
                     if self._is_valid_guess(word):
                         return word # Return the first valid word found
 
-                print(f"LLM proposed: '{response_text}'. No valid 5-letter word found. Retrying...")
+                print(f"LLM proposed: '{response_text}'. Found words {potential_words}, but none are in the allowed word list. Retrying...")
 
             except ollama.ResponseError as e:
-                print(f"Error calling Ollama API: {e.error}")
                 if e.status_code == 404:
-                    print(f"Model '{self.model_name}' not found. Make sure you have it running.")
+                    raise ValueError(
+                        f"Model '{self.model_name}' not found. "
+                        "Please make sure the model is available in your Ollama instance and that you have spelled the name correctly."
+                    ) from e
+                print(f"Error calling Ollama API: {e.error}")
                 break
         
         print("LLM failed to provide a valid guess. Falling back to a simple strategy.")
@@ -60,23 +68,28 @@ class LLMSolver:
         'g' = green, 'y' = yellow, 'b' = black/gray.
         """
         prompt = (
-            "You are a Wordle assistant. Your goal is to guess the secret 5 letter word.\n"
+            "You are a Wordle assistant. Your goal is to guess the secret 5-letter word.\n"
             "Based on the history of guesses and their results (patterns), suggest the best next 5-letter word.\n"
             "The pattern indicates the result for each letter:\n"
             "- 'g': The letter is in the correct position (green).\n"
             "- 'y': The letter is in the word but in the wrong position (yellow).\n"
             "- 'b': The letter is not in the word (black/gray).\n\n"
-            "Make sure your suggestion is a valid English 5-letter word.\n"
-            "Here is the history of guesses so far:\n"
+            "Example Game:\n"
+            "Secret word: 'APPLE'\n"
+            "History:\n"
+            "- Guess: 'CRANE', Pattern: 'bbbyb'\n"
+            "- Guess: 'PULLY', Pattern: 'ybbbb'\n"
+            "Based on this, a good next guess would be 'APPLE'.\n\n"
         )
 
         if not history:
-            prompt += "No guesses have been made yet. Suggest a good starting word.\n"
+            prompt += "No guesses have been made yet. Suggest a good starting word like 'raise' or 'soare'.\n"
         else:
+            prompt += "Here is the history of guesses so far:\n"
             for guess, pattern in history:
                 prompt += f"- Guess: '{guess}', Pattern: '{pattern}'\n"
 
-        prompt += "\nYour response MUST be a single, valid 5-letter English word, and nothing else."
+        prompt += "\nYour response MUST be a single, valid 5-letter English word that can be played in Wordle, and nothing else."
         return prompt
 
     def _is_valid_guess(self, word):
@@ -91,8 +104,8 @@ class LLMSolver:
         """
         if not history:
             return "raise"
-        # A real implementation would be more complex
-        return self.allowed_words[0]
+        # Return a random word from the allowed list as a last resort
+        return random.choice(self.allowed_words)
 
 if __name__ == '__main__':
     # Example of how to use the LLMSolver
