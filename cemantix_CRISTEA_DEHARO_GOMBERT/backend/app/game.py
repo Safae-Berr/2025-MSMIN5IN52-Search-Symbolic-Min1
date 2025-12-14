@@ -6,11 +6,19 @@ import spacy
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Chargement du modèle de langue (contient les vecteurs sémantiques)
+# On essaie d'abord le modèle large (plus précis), puis on fallback sur medium
 print("Chargement du modèle spaCy...")
+nlp = None
 try:
-    nlp = spacy.load("fr_core_news_md")
+    nlp = spacy.load("fr_core_news_lg")
+    print("✓ Modèle 'fr_core_news_lg' chargé (vecteurs 300D, plus précis)")
 except OSError:
-    raise RuntimeError("Le modèle 'fr_core_news_md/lg' n'est pas trouvé. Lancez: python -m spacy download fr_core_news_md/lg (correspondant au modèle voulu)")
+    try:
+        nlp = spacy.load("fr_core_news_md")
+        print("⚠ Modèle 'fr_core_news_md' chargé (vecteurs 300D, moins précis)")
+        print("  Pour de meilleurs résultats, installez 'fr_core_news_lg': python -m spacy download fr_core_news_lg")
+    except OSError:
+        raise RuntimeError("Aucun modèle spaCy trouvé. Lancez: python -m spacy download fr_core_news_lg (recommandé) ou fr_core_news_md")
 
 class Game:
     def __init__(self, target: str, max_attempts: int = 6):
@@ -21,6 +29,7 @@ class Game:
         self.guesses: List[Tuple[str, float, int]] = []  # (guess, score, rank) 
         self.finished: bool = False
         self.won: bool = False
+        self.target_revealed: bool = False  # Indique si le mot cible a été révélé manuellement
 
 class GameManager:
     def __init__(self, vocab: List[str]):
@@ -63,44 +72,84 @@ class GameManager:
             raise KeyError("Partie introuvable")
         game = self.games[game_id]
         
-        if game.finished:
-            return {"error": "Partie terminée", "finished": True, "won": game.won, "target": game.target}
+        # Si la partie est gagnée, on ne peut plus jouer
+        if game.finished and game.won:
+            return {"error": "Partie terminée (gagnée)", "finished": True, "won": game.won, "target": game.target}
+        
+        # Initialiser target_revealed si la partie a été créée avant cette fonctionnalité
+        if not hasattr(game, 'target_revealed'):
+            game.target_revealed = False
+        
+        # Si la partie était perdue mais qu'on a ajouté des tentatives, on peut continuer
+        # SAUF si le mot a été révélé (partie définitivement terminée)
+        if game.finished and not game.won and not game.target_revealed:
+            game.finished = False  # Réactiver la partie
 
         game.attempts += 1
         guess_norm = guess.strip()
         
-        # --- Calcul du Score ---
+        # --- Calcul UNIFIÉ du Score et du Rang ---
+        # On calcule TOUJOURS avec le vocabulaire pour garantir la cohérence
         target_doc = nlp(game.target)
         guess_doc = nlp(guess_norm)
 
         # Si le mot n'a pas de vecteur (mot inconnu / faute de frappe)
         if not guess_doc.has_vector or guess_doc.vector_norm == 0:
             score = 0.0
+            rank = len(self.vocab) + 1  # Dernier rang si pas de vecteur
         else:
-            # score de similarité (entre 0 et 1)
-            score = float(target_doc.similarity(guess_doc))
-
-        # --- Calcul du Rang (Top 1000, etc.) ---
-        # On compare le vecteur de la CIBLE avec tout le VOCABULAIRE
-        # target_vec shape: (1, 300), vocab_vectors shape: (N, 300)
-        
-        target_vec = target_doc.vector.reshape(1, -1)
-        
-        # Similarité cosinus entre la cible et TOUS les mots du vocabulaire
-        # Cela renvoie un tableau [0.1, 0.5, 0.9, ...]
-        sims = cosine_similarity(target_vec, self.vocab_vectors)[0]
-        
-        # Si le mot deviné est dans le vocabulaire, on utilise sa similarité précise issue du tableau
-        # pour s'assurer que le classement est cohérent
-        if guess_norm in self.vocab:
-            idx = self.vocab.index(guess_norm)
-            guess_score_in_vocab = sims[idx]
-            # On met à jour le score affiché pour qu'il corresponde exactement au classement
-            score = float(guess_score_in_vocab)
-
-        # Combien de mots ont un score supérieur à ma proposition ?
-        # C'est le rang (ex: si 5 mots sont meilleurs, je suis 6ème)
-        rank = int(np.sum(sims > score)) + 1
+            # Normaliser le vecteur cible pour un calcul cohérent
+            target_vec_raw = target_doc.vector
+            target_norm = np.linalg.norm(target_vec_raw)
+            if target_norm > 0:
+                target_vec_normalized = target_vec_raw / target_norm
+            else:
+                target_vec_normalized = target_vec_raw
+            
+            target_vec = target_vec_normalized.reshape(1, -1)
+            
+            # Normaliser les vecteurs du vocabulaire pour un calcul cohérent
+            vocab_norms = np.linalg.norm(self.vocab_vectors, axis=1, keepdims=True)
+            vocab_norms = np.where(vocab_norms == 0, 1, vocab_norms)
+            vocab_vectors_normalized = self.vocab_vectors / vocab_norms
+            
+            # Calculer la similarité cosinus entre la cible et TOUS les mots du vocabulaire
+            # Cela garantit que le score et le rang sont calculés de la même manière
+            sims = cosine_similarity(target_vec, vocab_vectors_normalized)[0]
+            
+            # Calculer le score du mot deviné avec la MÊME méthode que pour le vocabulaire
+            # pour garantir la cohérence absolue entre score et rang
+            guess_vec_raw = guess_doc.vector
+            guess_norm_val = np.linalg.norm(guess_vec_raw)
+            if guess_norm_val > 0:
+                guess_vec_normalized = guess_vec_raw / guess_norm_val
+            else:
+                guess_vec_normalized = guess_vec_raw
+            
+            guess_vec = guess_vec_normalized.reshape(1, -1)
+            # Calculer la similarité avec le vecteur cible normalisé (même méthode que pour vocab)
+            score = float(cosine_similarity(target_vec, guess_vec)[0][0])
+            
+            # S'assurer que le score est dans [0, 1]
+            score = max(0.0, min(1.0, score))
+            
+            # Si le mot est dans le vocabulaire, utiliser son score exact du tableau pour cohérence
+            if guess_norm in self.vocab:
+                idx = self.vocab.index(guess_norm)
+                score_from_vocab = float(sims[idx])
+                # Utiliser le score du vocabulaire pour garantir la cohérence exacte avec le rang
+                score = score_from_vocab
+            
+            # Calculer le rang : combien de mots du vocabulaire ont un score supérieur ?
+            # On utilise une comparaison avec une petite tolérance pour éviter les problèmes de précision
+            # Le rang est calculé en comptant combien de mots du vocabulaire ont un score STRICTEMENT supérieur
+            # puis on ajoute 1 (car le rang commence à 1, pas 0)
+            rank = int(np.sum(sims > (score + 1e-10))) + 1
+            
+            # Note importante : Le score et le rang sont maintenant calculés de manière cohérente.
+            # Si un mot est au rang 25 avec 20%, cela signifie qu'il y a 24 mots dans le vocabulaire
+            # avec un score supérieur à 20%. Cela peut sembler contre-intuitif, mais c'est mathématiquement correct.
+            # La similarité sémantique entre mots peut être faible même pour des mots "proches" conceptuellement.
 
         # Mise à jour état du jeu
         game.guesses.append((guess_norm, score, rank))
@@ -112,13 +161,23 @@ class GameManager:
             game.finished = True
             game.won = True
         elif game.attempts >= game.max_attempts:
-            game.finished = True
-            game.won = False
+            # Marquer comme terminée seulement si on n'a pas gagné
+            # Cela permet d'ajouter des tentatives plus tard si on a perdu
+            if not game.won:
+                game.finished = True
+                game.won = False
 
         # Récupérer les mots les plus proches pour info (optionnel, aide au debug)
         # top_k_idx = sims.argsort()[::-1][:10]
         # top_k = [{"word": self.vocab[i], "sim": float(sims[i])} for i in top_k_idx]
 
+        # Initialiser target_revealed si la partie a été créée avant cette fonctionnalité
+        if not hasattr(game, 'target_revealed'):
+            game.target_revealed = False
+        
+        # Révéler le mot cible seulement si la partie est gagnée OU si le mot a été révélé manuellement
+        should_reveal_target = (game.finished and game.won) or (hasattr(game, 'target_revealed') and game.target_revealed)
+        
         return {
             "game_id": game.id,
             "guess": guess_norm,
@@ -128,7 +187,8 @@ class GameManager:
             "remaining": max(0, game.max_attempts - game.attempts),
             "finished": game.finished,
             "won": game.won,
-            "target": game.target if game.finished else None,
+            # Révéler le mot cible seulement si gagné OU révélé manuellement
+            "target": game.target if should_reveal_target else None,
             "history": [{"guess": g, "score": round(s * 100, 2), "rank": r} for g, s, r in game.guesses],
         }
 

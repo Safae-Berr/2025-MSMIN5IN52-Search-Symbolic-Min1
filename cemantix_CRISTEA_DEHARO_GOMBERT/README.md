@@ -1,12 +1,14 @@
-# Cemantix IA - README Complet
+# Cemantix IA - README
 
 ## 📋 Vue d'ensemble
 
-**Cemantix IA** est une application web complète pour jouer au jeu Cemantix (trouver un mot cible basé sur la similarité sémantique) avec support d'IA. Le projet est composé de trois parties :
+**Cemantix IA** est une application web complète pour jouer au jeu Cemantix (trouver un mot cible basé sur la similarité sémantique) avec support d'IA. **L'objectif principal de ce projet est d'utiliser un LLM (Large Language Model) pour résoudre le jeu**, même si c'est plus lent que les approches heuristiques.
 
-- **Backend** : API FastAPI en Python (gestion du jeu, calcul de similarité, IA)
-- **Frontend** : Interface Angular moderne
-- **IA** : Modules de résolution automatique (TF-IDF, Sentence Transformers, LLM)
+Le projet est composé de trois parties :
+
+- **Backend** : API FastAPI en Python (gestion du jeu, calcul de similarité, IA avec LLM)
+- **Frontend** : Interface Angular moderne avec suggestions LLM
+- **IA** : Résolution automatique utilisant Ollama (LLM local)
 
 ---
 
@@ -18,13 +20,11 @@
 3. Chaque mot reçoit un score de similarité (0-100) par rapport au mot cible
 4. L'objectif : trouver le mot cible
 
-### Modes d'IA disponibles
+### 🧠 Approche IA : LLM Ollama
 
-| Mode | Variable d'env | Qualité | Vitesse | Poids |
-|------|----------------|---------|---------|-------|
-| **TF-IDF** | `USE_ST_MODEL=0` | Basique | ⚡ Rapide | Léger |
-| **Sentence Transformers** | `USE_ST_MODEL=1` | 🌟 Excellente | Moyen | Lourd (~500MB) |
-| **LLM (Llama)** | Détecté auto | 🚀 Optimale | Lent | Très lourd |
+**Ce projet utilise Ollama (LLM local) par défaut** pour résoudre le Cemantix. Le LLM raisonne sur les indices comme un humain, analysant les patterns dans l'historique des tentatives pour proposer le meilleur mot suivant.
+
+**Ollama** : Local, gratuit, **AUCUNE clé API nécessaire !** ⭐
 
 ---
 
@@ -50,39 +50,46 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-#### Modèles spaCy disponibles
+#### Modèle spaCy
 
-Le modèle spaCy détermine la qualité du calcul de similarité sémantique. Vous avez le choix entre 3 tailles :
+Le modèle spaCy détermine la qualité du calcul de similarité sémantique. **Le code essaie automatiquement d'utiliser le meilleur modèle disponible** :
 
-| Modèle | Taille | Qualité | Vitesse | Recommandation |
-|--------|--------|---------|---------|----------------|
-| `fr_core_news_sm` | ~40 MB | Basique | ⚡ Très rapide | Tests rapides |
-| `fr_core_news_md` | ~100 MB | Bonne | ⚡ Rapide | Équilibre/Utilisé |
-| `fr_core_news_lg` | ~500 MB | 🌟 Excellente | Normal | **Recommandé** |
+| Modèle | Taille | Qualité | Recommandation |
+|--------|--------|---------|----------------|
+| `fr_core_news_lg` | ~500 MB | 🌟 Excellente | **Recommandé** ⭐ |
+| `fr_core_news_md` | ~100 MB | Bonne | Équilibre (fallback) |
 
 **Installation du modèle** :
 ```bash
-# Télécharger et installer le modèle (choisissez 1)
-# python -m spacy download fr_core_news_lg    # Recommandé (meilleure qualité)
-python -m spacy download fr_core_news_md  # Bon équilibre/Utilisé
-# python -m spacy download fr_core_news_sm  # Léger / rapide
+# Télécharger et installer le modèle recommandé
+python -m spacy download fr_core_news_lg    # ⭐ Recommandé (meilleure qualité, scores plus précis)
 ```
 
-**Adaptation dans game.py** :
+**Comportement automatique** :
 
-Modifiez la ligne 9 du fichier [`backend/app/game.py`](backend/app/game.py) :
+Le code dans [`backend/app/game.py`](backend/app/game.py) essaie automatiquement :
+1. **D'abord** `fr_core_news_lg` (meilleure précision des scores)
+2. **Sinon** `fr_core_news_md` (fallback)
+3. **Sinon** erreur avec instructions
 
-```python
-# Changez selon le modèle que vous avez téléchargé
-# nlp = spacy.load("fr_core_news_lg")    # Recommandé
-nlp = spacy.load("fr_core_news_md")  # Alternatif/Utilisé
-# nlp = spacy.load("fr_core_news_sm")  # Léger
+#### Configuration du LLM - Ollama
+
+Le projet utilise **Ollama (local, gratuit) par défaut** ⭐ - **AUCUNE clé API nécessaire !**
+
+**Étape 1 : Installer Ollama**
+1. Téléchargez Ollama depuis https://ollama.ai
+2. Installez-le (Windows/Mac/Linux)
+3. Lancez Ollama (il démarre automatiquement en arrière-plan)
+
+**Étape 2 : Télécharger un modèle**
+```bash
+# Téléchargez le modèle recommandé
+ollama pull llama3.2      # Recommandé (2GB)
 ```
 
 **Lancer le serveur** :
 ```bash
-$env:USE_ST_MODEL = "1"  # Windows : Active Sentence Transformers
-export USE_ST_MODEL=1    # Linux/macOS
+# Ollama est utilisé par défaut - aucune clé API nécessaire !
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -103,46 +110,27 @@ npm install
 ng serve
 # ou
 npm start
-
-# Ou pour le build production
-ng build
 ```
 
 Le frontend sera accessible à `http://localhost:4200`
 
-### 3️⃣ IA (Résolution automatique)
-
-```bash
-# Depuis le dossier IA
-cd IA
-
-# Activer le venv du backend (pour les dépendances partagées)
-.\..\backend\.venv\Scripts\activate
-
-# Lancer le solveur IA
-python main.py
-```
-
 ---
 
-## 🚀 Démarrage rapide (tous les composants)
+## 🚀 Démarrage rapide
+
+**Prérequis** : Installer Ollama depuis https://ollama.ai et lancer `ollama pull llama3.2`
 
 ### Windows
 ```powershell
 # Terminal 1 - Backend
 cd backend
 .\.venv\Scripts\activate
-$env:USE_ST_MODEL = "1"
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 # Terminal 2 - Frontend
 cd frontend/cemantix-fr
 npm install
 ng serve
-
-# Terminal 3 - IA (optionnel)
-cd IA
-python main.py
 ```
 
 ### Linux/macOS
@@ -150,18 +138,17 @@ python main.py
 # Terminal 1 - Backend
 cd backend
 source .venv/bin/activate
-export USE_ST_MODEL=1
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 # Terminal 2 - Frontend
 cd frontend/cemantix-fr
 npm install
 ng serve
-
-# Terminal 3 - IA (optionnel)
-cd IA
-python main.py
 ```
+
+**Note** : Le frontend propose deux boutons :
+- **💡 Suggestion LLM** : Obtient une suggestion unique du LLM
+- **🤖 LLM résout** : Résout automatiquement toute la partie avec le LLM (affichage en temps réel)
 
 ---
 
@@ -173,82 +160,48 @@ python main.py
 |---------|------|
 | `app/main.py` | Application FastAPI principale, endpoints |
 | `app/game.py` | Logique du jeu (scoring, gestion des parties) |
-| `app/ai_solver.py` | IA légère (TF-IDF + spaCy) |
-| `app/ai_solver_llm.py` | IA avancée (Sentence Transformers + LLM) |
+| `app/ai_solver_llm.py` | **IA LLM avec Ollama** 🎯 |
+| `app/ai_solver.py` | IA heuristique (fallback si USE_LLM=false) |
 | `app/vocab.txt` | Vocabulaire français (~50k mots) |
 
 ### Endpoints API
 
 #### 🎮 Gestion du jeu
 - **POST** `/start` → Démarre une nouvelle partie
-  ```json
-  { "target": "optional_word" }
-  ```
-  Réponse : `{ "game_id": "...", "vocab_size": 50000 }`
-
 - **POST** `/guess` → Envoie une proposition
-  ```json
-  { "game_id": "...", "guess": "mot" }
-  ```
-  Réponse : `{ "score": 85, "rank": 12, "found": false, "similar_words": [...] }`
-
+- **GET** `/game/{game_id}` → Récupère le statut d'une partie
 - **GET** `/vocab` → Récupère une partie du vocabulaire
-  ```json
-  { "words": ["mot1", "mot2", ...], "count": 100 }
-  ```
 
-#### 🤖 IA
-- **POST** `/ai/suggest` → Obtient la suggestion de l'IA
-- **GET** `/ai/status` → État de l'IA active
+#### 🤖 IA (LLM Ollama)
+- **POST** `/ai/suggest` → Obtient une suggestion unique du LLM pour le prochain mot
+- **POST** `/ai/solve` → Résout automatiquement la partie avec le LLM (streaming en temps réel)
 
 #### 📊 Debug
 - **GET** `/health` → Santé du serveur
 
 ---
 
-## 🧠 Modules IA
+## 🧠 Module IA
 
-### `ai_solver.py` - Léger (TF-IDF)
+### `ai_solver_llm.py` - LLM Ollama 🎯
+**C'est le module principal du projet.** Il utilise Ollama (LLM local) pour raisonner sur les indices et proposer le meilleur mot.
+
+**Fonctionnement** :
+1. Analyse l'historique des tentatives (mots proposés, scores, rangs)
+2. Construit un prompt contextuel pour le LLM
+3. Le LLM raisonne comme un humain et propose un mot
+4. Validation anti-régression pour éviter les mots moins bons que les précédents
+5. Fallback heuristique si le mot proposé n'est pas dans le vocabulaire
+
+**Configuration** :
+- `OLLAMA_URL` : URL du serveur (par défaut : `http://localhost:11434`)
+- `OLLAMA_MODEL` : Modèle à utiliser (par défaut : `llama3.2`)
+- **Aucune clé API nécessaire !**
+
+### `ai_solver.py` - Heuristique (Fallback optionnel)
 - Rapide, peu de mémoire
-- Basé sur la fréquence des termes
-- Bon pour tester rapidement
-- **Commande** : `USE_ST_MODEL=0`
-
-### `ai_solver_llm.py` - Avancé (Sentence Transformers + LLM)
-- Comprend le sens sémantique des mots
-- Modèle pré-entraîné français
-- Meilleure qualité de prédiction
-- **Commande** : `USE_ST_MODEL=1`
-
-### [`IA/seeking_word.py`](IA/seeking_word.py) - Solveur autonome
-Implémente une stratégie d'exploration intelligente :
-1. Propose des mots basés sur la similarité
-2. Affine la recherche selon les retours
-3. Converge vers le mot cible
-
----
-
-## 🎨 Architecture Frontend (Angular)
-
-### Structure
-```
-src/
-├── app/
-│   ├── app.component.ts      # Composant principal
-│   ├── app.component.html    # Template
-│   ├── app.component.scss    # Styles
-│   ├── api.service.ts        # Service HTTP vers le backend
-│   └── app.routes.ts         # Routage
-├── main.ts                    # Point d'entrée
-└── styles.css                 # Styles globaux
-```
-
-### Flux utilisateur
-1. Interface affiche un formulaire de saisie
-2. Appel `POST /guess` au backend
-3. Reçoit le score et la liste de mots similaires
-4. Mise à jour dynamique de l'affichage
-5. Victoire si score = 100
+- Basé sur la similarité sémantique avec spaCy
+- Utilisé uniquement si `USE_LLM=false`
 
 ---
 
@@ -256,16 +209,23 @@ src/
 
 ### Variables d'environnement
 
-#### Backend
-- `USE_ST_MODEL` : `0` (TF-IDF) ou `1` (Sentence Transformers)
+#### Backend - Configuration LLM
+
+- `USE_LLM` : `true` (par défaut) ou `false` pour désactiver le LLM
   ```powershell
-  $env:USE_ST_MODEL = "1"  # Windows
-  export USE_ST_MODEL=1    # Linux/macOS
+  $env:USE_LLM = "true"   # Windows (par défaut)
+  export USE_LLM=true     # Linux/macOS (par défaut)
   ```
 
-- `MODEL_PATH` : Chemin du modèle spaCy (détecté auto)
+- `LLM_MODEL` : Type de LLM à utiliser (par défaut : `ollama`)
+  ```powershell
+  $env:LLM_MODEL = "ollama"  # Ollama (gratuit, local, pas de clé API) - PAR DÉFAUT ⭐
+  ```
 
-- `VOCAB_PATH` : Chemin du fichier vocabulaire (par défaut : `app/vocab.txt`)
+**Variables pour Ollama** ⭐ :
+- `OLLAMA_URL` : URL du serveur (par défaut : `http://localhost:11434`)
+- `OLLAMA_MODEL` : Modèle à utiliser (par défaut : `llama3.2`)
+- **Aucune clé API nécessaire !**
 
 #### Frontend
 - Configuré dans `src/environments/`
@@ -279,7 +239,6 @@ src/
 ```bash
 python -m spacy download fr_core_news_lg
 ```
-Puis mettez à jour [`backend/app/game.py`](backend/app/game.py) ligne 9 avec le modèle téléchargé.
 
 ### Erreur : "SSL module not available"
 Réinstallez Python 3.11+ depuis https://www.python.org/downloads/
@@ -294,8 +253,14 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ### Frontend : CORS error
 Vérifiez que le backend tourne sur `http://127.0.0.1:8000`
 
-### IA lente au premier lancement
-Les modèles Sentence Transformers se téléchargent (~500MB). C'est normal.
+### Ollama - Problèmes courants
+
+**Ollama (défaut)** ⭐ :
+- ✅ **Aucune clé API nécessaire !**
+- Installez depuis https://ollama.ai
+- Téléchargez un modèle : `ollama pull llama3.2`
+- Vérifiez que Ollama tourne : `ollama list` (doit afficher les modèles)
+- Si erreur de connexion : Vérifiez que Ollama est lancé (il démarre automatiquement après installation)
 
 ---
 
@@ -306,4 +271,4 @@ Les modèles Sentence Transformers se téléchargent (~500MB). C'est normal.
 | FastAPI | https://fastapi.tiangolo.com/ |
 | Angular | https://angular.dev |
 | spaCy | https://spacy.io/ |
-| Sentence Transformers | https://www.sbert.net/ |
+| Ollama | https://ollama.ai |

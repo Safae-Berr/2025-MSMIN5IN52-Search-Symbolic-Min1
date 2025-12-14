@@ -23,6 +23,10 @@ export class AppComponent {
   message = '';
   topSimilaires: any[] = [];
   aiSolving = false;
+  aiSuggesting = false;
+  aiSuggestion: string | null = null;
+  addingAttempts = false;
+  revealingTarget = false;
 
   constructor(private api: ApiService) {}
 
@@ -74,6 +78,10 @@ export class AppComponent {
       
       if (res.finished) {
         this.message = res.won ? `🎉 Bravo ! Vous avez trouvé le mot !` : `😔 Partie terminée`;
+        // Rafraîchir l'état pour s'assurer que tout est à jour (notamment pour afficher les boutons d'ajout de tentatives)
+        if (!res.won) {
+          this.refreshGameState();
+        }
       } else {
         this.message = `Score: ${res.score.toFixed(1)}% — Rang: ${res.rank}`;
       }
@@ -105,6 +113,56 @@ export class AppComponent {
     return this.getProximityPercentage(score) > 90;
   }
 
+  // Get the best score from history
+  getBestScore(): number {
+    if (this.history.length === 0) return 0;
+    return Math.max(...this.history.map((h: any) => h.score));
+  }
+
+  addAttempts(additional: number) {
+    if (!this.gameId || this.won) return;
+    
+    this.addingAttempts = true;
+    this.api.addAttempts(this.gameId, additional).subscribe({
+      next: (res) => {
+        this.addingAttempts = false;
+        this.maxAttempts = res.max_attempts;
+        this.remaining = res.remaining;
+        this.finished = false;
+        this.message = `✅ ${additional} tentative(s) ajoutée(s) ! Vous pouvez continuer à jouer.`;
+        this.refreshGameState();
+      },
+      error: (err) => {
+        this.addingAttempts = false;
+        this.message = 'Erreur : ' + (err.error?.detail ?? err.message);
+      }
+    });
+  }
+
+  revealTarget() {
+    if (!this.gameId || this.won) return;
+    
+    if (!confirm('Êtes-vous sûr de vouloir révéler le mot ? La partie sera définitivement terminée.')) {
+      return;
+    }
+    
+    this.revealingTarget = true;
+    this.api.revealTarget(this.gameId).subscribe({
+      next: (res) => {
+        this.revealingTarget = false;
+        this.targetWord = res.target;
+        this.finished = true;
+        this.won = false;
+        this.message = `😔 Le mot à trouver était : "${res.target}". Partie terminée.`;
+        this.refreshGameState();
+      },
+      error: (err) => {
+        this.revealingTarget = false;
+        this.message = 'Erreur : ' + (err.error?.detail ?? err.message);
+      }
+    });
+  }
+
   aiSolve() {
     if (!this.gameId) {
       this.message = "D'abord démarrer une partie";
@@ -116,27 +174,159 @@ export class AppComponent {
     }
     
     this.aiSolving = true;
-    this.message = '🤖 L\'IA résout la partie...';
+    this.message = '🤖 L\'IA (LLM) résout la partie...';
     
-    this.api.aiSolve(this.gameId).subscribe(res => {
-      this.aiSolving = false;
-      
-      if (res.success) {
-        this.message = `🤖 L'IA a trouvé le mot en ${res.attempts} essai(s) !`;
-        // Rafraîchir l'état de la partie
-        this.refreshGameState();
-      } else {
-        if (res.error) {
-          this.message = `❌ Erreur IA: ${res.error}`;
-        } else {
-          this.message = `🤖 L'IA n'a pas trouvé le mot en ${res.attempts} essai(s)`;
-          this.refreshGameState();
+    // Utiliser le streaming pour voir les propositions en temps réel
+    this.api.aiSolveStream(this.gameId).subscribe({
+      next: (event) => {
+        switch (event.type) {
+          case 'start':
+            this.message = '🤖 ' + event.message;
+            break;
+          
+          case 'thinking':
+            this.message = '🤖 ' + event.message;
+            break;
+          
+          case 'guess':
+            // Ajouter le guess à l'historique en temps réel
+            const guessData = event.data;
+            const newGuess = {
+              guess: guessData.guess,
+              score: guessData.score,
+              rank: guessData.rank,
+              attempt: guessData.attempt
+            };
+            
+            // Vérifier si ce guess n'est pas déjà dans l'historique
+            const exists = this.history.some((h: any) => 
+              h.guess === newGuess.guess && h.attempt === newGuess.attempt
+            );
+            
+            if (!exists) {
+              this.history.push(newGuess);
+              this.history = this.history.sort((a: any, b: any) => b.score - a.score);
+            }
+            
+            // Mettre à jour les essais restants
+            this.remaining = Math.max(0, this.maxAttempts - guessData.attempt);
+            
+            this.message = `🤖 Proposition ${guessData.attempt}: "${guessData.guess}" - Score: ${guessData.score.toFixed(1)}% - Rang: ${guessData.rank}`;
+            break;
+          
+          case 'success':
+            this.aiSolving = false;
+            this.message = `🎉 ${event.message}`;
+            this.finished = true;
+            this.won = true;
+            this.targetWord = event.target;
+            this.remaining = 0;
+            // Rafraîchir pour avoir l'état final complet
+            this.refreshGameState();
+            break;
+          
+          case 'finished':
+            this.aiSolving = false;
+            this.message = `🤖 ${event.message}`;
+            this.finished = true;
+            this.won = false;
+            this.targetWord = event.target;
+            this.remaining = 0;
+            // Rafraîchir pour avoir l'état final complet
+            this.refreshGameState();
+            break;
+          
+          case 'error':
+            this.aiSolving = false;
+            this.message = `❌ Erreur: ${event.message}`;
+            break;
         }
+      },
+      error: (err) => {
+        this.aiSolving = false;
+        this.message = 'Erreur lors de la résolution IA : ' + (err.message || err);
+      },
+      complete: () => {
+        this.aiSolving = false;
+        this.refreshGameState();
+      }
+    });
+  }
+
+  aiSuggest() {
+    if (!this.gameId) {
+      this.message = "D'abord démarrer une partie";
+      return;
+    }
+    if (this.finished) {
+      this.message = "La partie est déjà terminée";
+      return;
+    }
+    
+    this.aiSuggesting = true;
+    this.aiSuggestion = null;
+    this.message = '🤖 L\'IA (LLM) réfléchit...';
+    
+    this.api.aiSuggest(this.gameId).subscribe(res => {
+      this.aiSuggesting = false;
+      
+      if (res.suggestion) {
+        this.aiSuggestion = res.suggestion;
+        this.message = `💡 Le LLM suggère: "${res.suggestion}" - Cliquez sur "Utiliser" pour le proposer`;
+      } else {
+        this.message = res.error || 'Aucune suggestion disponible';
       }
     }, err => {
-      this.aiSolving = false;
-      this.message = 'Erreur lors de la résolution IA : ' + (err.error?.detail ?? err.message);
+      this.aiSuggesting = false;
+      this.message = 'Erreur lors de la suggestion IA : ' + (err.error?.detail ?? err.message);
     });
+  }
+
+  useAISuggestion() {
+    if (this.aiSuggestion && this.gameId && !this.finished) {
+      // Mettre le mot dans le champ de saisie
+      this.guessText = this.aiSuggestion;
+      // Soumettre directement le guess
+      const guess = this.aiSuggestion.trim();
+      if (guess) {
+        this.api.guess(this.gameId, guess).subscribe({
+          next: (res) => {
+            if (res.error) {
+              this.message = res.error;
+              return;
+            }
+            // Mapper l'historique avec les informations
+            const historyMapped = res.history.map((h: any, index: number) => ({ 
+              guess: h.guess, 
+              score: h.score,
+              rank: h.rank || res.rank,
+              attempt: index + 1
+            }));
+            
+            // Trier par score décroissant
+            this.history = historyMapped.sort((a: any, b: any) => b.score - a.score);
+            
+            this.remaining = res.remaining;
+            this.finished = res.finished;
+            this.won = res.won;
+            this.targetWord = res.target || null;
+            this.topSimilaires = res.top_similaires || [];
+            
+            if (res.finished) {
+              this.message = res.won ? `🎉 Bravo ! Vous avez trouvé le mot !` : `😔 Partie terminée`;
+            } else {
+              this.message = `Score: ${res.score.toFixed(1)}% — Rang: ${res.rank}`;
+            }
+            this.guessText = '';
+            // Effacer la suggestion après soumission
+            this.aiSuggestion = null;
+          },
+          error: (err) => {
+            this.message = 'Erreur lors de la proposition : ' + (err.error?.detail ?? err.message);
+          }
+        });
+      }
+    }
   }
 
   refreshGameState() {
