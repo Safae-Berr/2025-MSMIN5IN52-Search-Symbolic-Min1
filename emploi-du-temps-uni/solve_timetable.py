@@ -30,7 +30,7 @@ def main():
                 teacher = result['event_teacher'][e-1]
                 start = result['event_start'][e-1]
                 room = result['event_room'][e-1]
-                print(f"Cours {e}: Enseignant {teacher}, Début {start}, Salle {room}")
+                print(f"Cours {e}: Professeur {teacher}, Début {start}, Salle {room}")
         elif result.status == minizinc.Status.UNSATISFIABLE:
             print("Aucune solution trouvée. Le problème est insatisfaisable.")
         else:

@@ -24,7 +24,7 @@ def solve_timetable():
         # generate temporary data.dzn from teachers/courses
         temp_path, slot_datetimes, num_rooms, num_teachers, num_events, event_infos, room_capacity = generate_temp_dzn()
         if num_teachers == 0:
-            return {'status': 'error', 'message': 'Aucun enseignant défini. Créez au moins un enseignant.'}
+            return {'status': 'error', 'message': 'Aucun professeur défini. Créez au moins un professeur.'}
         if num_events == 0:
             return {'status': 'error', 'message': 'Aucun cours défini. Créez au moins un cours.'}
         model.add_file(temp_path)
@@ -326,27 +326,40 @@ def generate_temp_dzn():
     event_duration = []
     event_students = []
     event_infos = []  # metadata per expanded event, in same order
+    event_course = []  # map each event to its course index (1..num_courses)
     # build teacher name map
     teacher_map = {t.get('id'): t.get('name') for t in teachers}
-    for c in courses:
+    # also build max_days_per_course (default to number of weekdays)
+    num_courses = len(courses)
+    max_days_per_course = []
+    for ci, c in enumerate(courses, start=1):
         sessions = int(c.get('total_sessions', 1))
         duration = int(c.get('duration', 1))
         students = int(c.get('students', 10))
         teacher_id = int(c.get('teacher_id', 1))
+        maxd = int(c.get('max_days_per_week', 6))
+        max_days_per_course.append(maxd)
         for _ in range(sessions):
             event_teacher.append(teacher_id)
             event_duration.append(duration)
             event_students.append(students)
+            event_course.append(ci)
             event_infos.append({
                 'course_id': int(c.get('id', 0)),
                 'course_name': c.get('name'),
                 'teacher_id': teacher_id,
-                'teacher_name': teacher_map.get(teacher_id, f'Enseignant {teacher_id}'),
+                'teacher_name': teacher_map.get(teacher_id, f'Professeur {teacher_id}'),
                 'students': students,
                 'duration': duration
             })
 
     num_events = len(event_teacher)
+
+    # compute slot_weekday mapping (weekday index 1..num_weekdays) and slot_hour/day
+    # We consider Monday..Saturday -> 1..6
+    slot_weekday = [ (dt.weekday() + 1) for dt in slot_datetimes ]
+    slot_hour = [ dt.hour for dt in slot_datetimes ]
+    slot_day = [ (dt.date() - start_date).days + 1 for dt in slot_datetimes ]
 
     # write temp dzn
     temp_path = os.path.join(base_dir, 'temp_data.dzn')
@@ -355,6 +368,8 @@ def generate_temp_dzn():
         f.write(f"num_slots = {num_slots};\n")
         f.write(f"num_rooms = {num_rooms};\n")
         f.write(f"num_teachers = {len(teachers)};\n")
+        f.write(f"num_courses = {num_courses};\n")
+        f.write(f"num_weekdays = 6;\n")
         # arrays
         def write_array(name, arr):
             f.write(f"{name} = [")
@@ -364,8 +379,15 @@ def generate_temp_dzn():
         write_array('event_teacher', event_teacher)
         write_array('event_duration', event_duration)
         write_array('event_students', event_students)
+        write_array('event_course', event_course)
         # room_capacity
         write_array('room_capacity', room_capacity)
+        # max_days_per_course
+        write_array('max_days_per_course', max_days_per_course)
+        # slot_weekday, slot_hour, slot_day
+        write_array('slot_weekday', slot_weekday)
+        write_array('slot_hour', slot_hour)
+        write_array('slot_day', slot_day)
         # teacher_available as array2d(TEACHERS, SLOTS, [...])
         f.write('teacher_available = array2d(TEACHERS, SLOTS, [')
         f.write(', '.join(str(x) for x in teacher_available))
@@ -399,12 +421,12 @@ def delete_teacher(teacher_id):
         # if any course references this teacher, refuse deletion
         linked = [c for c in courses if int(c.get('teacher_id', -1)) == int(teacher_id)]
         if linked:
-            return jsonify({'status': 'error', 'message': "Impossible de supprimer l'enseignant: il est affecté à au moins un cours."}), 400
+            return jsonify({'status': 'error', 'message': "Impossible de supprimer le professeur: il est affecté à au moins un cours."}), 400
         new_teachers = [t for t in teachers if int(t.get('id', -1)) != int(teacher_id)]
         if len(new_teachers) == len(teachers):
-            return jsonify({'status': 'error', 'message': 'Enseignant introuvable.'}), 404
+            return jsonify({'status': 'error', 'message': 'Professeur introuvable.'}), 404
         save_teachers(new_teachers)
-        return jsonify({'status': 'success', 'message': 'Enseignant supprimé.'})
+        return jsonify({'status': 'success', 'message': 'Professeur supprimé.'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

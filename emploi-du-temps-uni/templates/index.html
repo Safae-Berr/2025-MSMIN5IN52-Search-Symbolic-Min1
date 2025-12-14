@@ -36,7 +36,7 @@
         <select id="room-select"></select>
     </div>
     <div style="max-width:900px;margin:8px auto;text-align:center">
-        <button id="manage-teachers-btn">Gérer les enseignants</button>
+        <button id="manage-teachers-btn">Gérer les professeurs</button>
     </div>
     <div style="max-width:900px;margin:8px auto;text-align:center">
         <button id="manage-courses-btn">Gérer les cours</button>
@@ -45,10 +45,11 @@
         <h3>Créer un cours</h3>
         <form id="course-form">
             <div style="margin:6px 0"><label>Nom: <input type="text" id="course-name" required></label></div>
-            <div style="margin:6px 0"><label>Enseignant: <select id="course-teacher"></select></label></div>
+            <div style="margin:6px 0"><label>Professeur: <select id="course-teacher"></select></label></div>
             <div style="margin:6px 0"><label>Nombre d'étudiants: <input type="number" id="course-students" value="20" min="1"></label></div>
             <div style="margin:6px 0"><label>Durée (heures par session): <input type="number" id="course-duration" value="1" min="1"></label></div>
             <div style="margin:6px 0"><label>Nombre de sessions totales: <input type="number" id="course-sessions" value="10" min="1"></label></div>
+            <div style="margin:6px 0"><label>Max jours/semaine autorisés: <input type="number" id="course-max-days" value="6" min="1" max="6"></label></div>
             <div style="margin-top:8px">
                 <button type="submit">Créer le cours</button>
                 <button type="button" id="course-cancel">Annuler</button>
@@ -58,7 +59,7 @@
         <ul id="courses-list"></ul>
     </div>
     <div id="teacher-manager" style="max-width:900px;margin:8px auto;display:none;background:white;padding:12px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.05);">
-        <h3>Créer un enseignant</h3>
+        <h3>Créer un professeur</h3>
         <form id="teacher-form">
             <label>Nom: <input type="text" id="teacher-name" required></label>
             <div style="margin-top:8px">
@@ -72,7 +73,7 @@
                 <button type="button" id="teacher-cancel">Annuler</button>
             </div>
         </form>
-        <h4>Enseignants existants</h4>
+        <h4>Professeurs existants</h4>
         <ul id="teachers-list"></ul>
     </div>
     <div id="calendar-single" style="max-width:900px;margin:0 auto;background:white;padding:12px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.08);height:600px;"></div>
@@ -188,7 +189,7 @@
                                 var li = document.createElement('li');
                                 var text = document.createElement('span');
                                 var t = tmap[c.teacher_id];
-                                var teacherName = t ? t.name : ('Enseignant ' + c.teacher_id);
+                                var teacherName = t ? t.name : ('Professeur ' + c.teacher_id);
                                 text.innerHTML = '<strong>' + c.name + '</strong><br><span class="small-muted">' + teacherName + ' — ' + c.total_sessions + ' sessions — ' + c.students + ' étudiants</span>';
                                 li.appendChild(text);
                                 var del = document.createElement('button');
@@ -218,11 +219,12 @@
                     var students = document.getElementById('course-students').value;
                     var duration = document.getElementById('course-duration').value;
                     var sessions = document.getElementById('course-sessions').value;
+                    var max_days = document.getElementById('course-max-days').value;
                     if(!name || !teacher_id) return alert('Nom et enseignant requis');
                     fetch('/courses',{
                         method:'POST',
                         headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({name:name, teacher_id:teacher_id, students:students, duration:duration, total_sessions:sessions})
+                        body: JSON.stringify({name:name, teacher_id:teacher_id, students:students, duration:duration, total_sessions:sessions, max_days_per_week: max_days})
                     }).then(r=>r.json()).then(d=>{
                         if(d.status === 'success'){
                             alert('Cours créé');
@@ -315,12 +317,12 @@
                                 del.style.marginLeft = '8px';
                                 del.textContent = 'Supprimer';
                                 del.onclick = function(){
-                                    if(!confirm('Supprimer l\'enseignant "'+t.name+'" ?')) return;
+                                    if(!confirm('Supprimer le professeur "'+t.name+'" ?')) return;
                                     fetch('/teachers/' + t.id, { method: 'DELETE' })
                                         .then(r=>r.json())
                                         .then(resp=>{
                                             if(resp.status === 'success'){
-                                                alert('Enseignant supprimé');
+                                                alert('Professeur supprimé');
                                                 loadTeachersList(); loadTeachersIntoSelect();
                                             } else {
                                                 alert('Erreur: ' + (resp.message||''));
@@ -361,7 +363,7 @@
                         body: JSON.stringify({name:name, availability:availability})
                     }).then(r=>r.json()).then(d=>{
                         if(d.status === 'success'){
-                            alert('Enseignant créé');
+                            alert('Professeur créé');
                             document.getElementById('teacher-name').value = '';
                             buildDaysInputs();
                             loadTeachersList();

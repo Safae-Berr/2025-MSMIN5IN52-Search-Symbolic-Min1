@@ -34,7 +34,7 @@ Ce projet implémente un système de planification d'emploi du temps pour cours 
 ### Fonctionnalités actuelles (état)
 
 - Interface web en français basée sur FullCalendar (vue hebdomadaire).
-- Création / suppression de `enseignants` avec disponibilités (Lun–Sam).
+- Création / suppression de `professeurs` avec disponibilités (Lun–Sam).
 - Création / suppression de `cours` (nom, enseignant, nombre d'étudiants, durée par session, nombre de sessions).
 - Infobulles de disponibilité (hover) affichant les plages par jour.
 - Génération automatique d'un fichier `temp_data.dzn` couvrant la période Sept–Nov (jours ouvrés, créneaux 09:00–16:00) à partir des données saisies.
