@@ -6,18 +6,9 @@ class Feedback(BaseModel):
     """
     Schéma représentant le feedback d'une proposition Wordle.
     """
-    green: Dict[int, str] = Field(
-        default_factory=dict,
-        description="Positions correctes avec la bonne lettre. Exemple: {0: 'A', 2: 'E'}"
-    )
-    yellow: Dict[int, List[str]] = Field(
-        default_factory=dict,
-        description="Lettres correctes mais à mauvaise position. Exemple: {1: ['A','E'], 3:['R']}"
-    )
-    grey: List[str] = Field(
-        default_factory=list,
-        description="Lettres absentes dans le mot."
-    )
+    green: Dict[str, str] = Field(default_factory=dict)
+    yellow: Dict[str, List[str]] = Field(default_factory=dict)
+    grey: List[str] = Field(default_factory=list)
 
 class WordGuessRequest(BaseModel):
     """

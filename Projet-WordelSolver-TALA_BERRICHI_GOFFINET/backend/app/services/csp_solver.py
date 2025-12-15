@@ -26,10 +26,12 @@ class WordleConstraints:
 
         # Greens
         for pos, letter in green.items():
+            pos = int(pos)
             self.green[pos] = letter
 
         # Yellows
         for pos, letters in yellow.items():
+            pos = int(pos)
             self.yellow[pos].update(letters)
 
         # Comptage min
