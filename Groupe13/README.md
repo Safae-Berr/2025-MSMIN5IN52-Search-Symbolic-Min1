@@ -39,7 +39,7 @@ Suivez ces étapes pour configurer l'environnement et exécuter le notebook `sta
     pip install -r Groupe13/requirements.txt
     ```
 
-3.  **Configurer le Noyau Jupyter** (Fortement recommandé) :
+3.  **Configurer le Noyau Jupyter** (Optionnel) :
     Cette étape garantit que Jupyter utilise les bonnes dépendances.
     ```shell
     # 1. S'assurer qu'ipykernel est installé
@@ -60,16 +60,5 @@ Suivez ces étapes pour configurer l'environnement et exécuter le notebook `sta
 Un test unitaire a été ajouté pour valider la cohérence entre le modèle CSP et l'algorithme de Gale-Shapley. Pour le lancer :
 ```shell
 # Assurez-vous que l'environnement .venv est activé
-python -m pytest tests/test_stable_marriage.py
+python -m pytest Groupe13/tests/test_stable_marriage.py
 ```
-
----
-
-## 2. Solveur Wordle
-
-La seconde partie du projet est un solveur pour le jeu Wordle.
-
--   `wordle-solver/` : Contient le code source du solveur, incluant un backend, une interface d'exemple, et les différentes stratégies.
--   `wordle_solver/` : Le package Python principal avec les algorithmes, la logique CSP, les dictionnaires et les stratégies de résolution.
-
-Pour les instructions spécifiques à ce sous-projet, consultez le `README.md` à l'intérieur du dossier `wordle-solver/`.
