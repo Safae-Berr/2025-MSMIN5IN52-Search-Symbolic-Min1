@@ -258,7 +258,7 @@ def suggest_hybrid(req: WordleRequest):
 # ROUTE 4 — SUGGESTION IA PURE
 # ============================================================
 @router.post("/suggest/ai")
-def suggest_ai(req: WordSuggestionsRequest):
+def suggest_ai(req: WordleRequest):
     """Suggère un mot basé sur IA uniquement"""
     lang = req.language.lower()
     solver = hybrid_solver_fr if lang == "fr" else hybrid_solver_en
@@ -272,7 +272,12 @@ def suggest_ai(req: WordSuggestionsRequest):
     candidates = solver.csp.filter_candidates(solver.constraints)
     
     if not candidates:
-        raise HTTPException(status_code=400, detail="Aucun candidat trouvé")
+      return {
+         "suggested_word": None,
+         "explanation": "Aucun candidat trouvé",
+         "candidates_count": 0,
+         "candidates": []
+        }
     
     # Filtrer les mots déjà essayés
     filtered_candidates = filter_already_guessed(candidates, req.previous_guesses or [])
