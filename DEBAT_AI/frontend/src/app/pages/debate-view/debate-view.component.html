@@ -1,0 +1,103 @@
+<div class="container">
+
+  <!-- Header -->
+  <header class="debate-header">
+    <a routerLink="/" class="icon-btn" title="Exit">←</a>
+
+    <div class="topic-banner" *ngIf="debateTopic">
+      <h3>{{ debateTopic }}</h3>
+      <!-- Score Board -->
+      <div class="score-board">
+        <div class="score-side side-a" [class.leading]="scoreA > scoreB">
+          <span class="score-name">{{ playerA }}</span>
+          <span class="score-num">{{ scoreA }}</span>
+        </div>
+        <div class="vs-badge">VS</div>
+        <div class="score-side side-b" [class.leading]="scoreB > scoreA">
+          <span class="score-num">{{ scoreB }}</span>
+          <span class="score-name">{{ playerB }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- User Switcher -->
+      <div class="user-toggle">
+        <button class="toggle-btn" [class.active]="username === playerA" (click)="switchUser(playerA)">{{ playerA }}</button>
+        <button class="toggle-btn" [class.active]="username === playerB" (click)="switchUser(playerB)">{{ playerB }}</button>
+      </div>
+      <!-- Finish Button -->
+      <button class="btn-finish" (click)="finishDebate()">🏁</button>
+    </div>
+  </header>
+
+  <!-- Message Area -->
+  <div class="message-container" #messageContainer>
+    <div *ngIf="messages.length === 0" class="loading">
+      Start the debate!
+    </div>
+
+    <div *ngFor="let msg of messages" class="message" #messageElements [attr.id]="'message-' + msg.id"
+      [class.highlighted-message]="msg.id === highlightedMessageId" [ngClass]="{
+        'my-message': msg.username === username,
+        'other-message': msg.username !== username
+      }">
+      <div class="message-bubble">
+        <div class="message-header-row">
+          <div class="message-author">{{ msg.username }}</div>
+          <span *ngIf="msg.relation_type === 'attack'" class="badge badge-attack">⚔️ ATTACK</span>
+          <span *ngIf="msg.relation_type === 'support'" class="badge badge-support">🛡️ SUPPORT</span>
+          <span *ngIf="msg.target_id" class="target-ref" (click)="scrollToMessage(msg.target_id)">↳ Ref #{{msg.target_id}}</span>
+        </div>
+        <div class="message-content">{{ msg.content }}</div>
+        <div *ngIf="msg.feedback" class="ai-feedback">
+          🤖 <em>Analyze: {{ msg.feedback }}</em>
+        </div>
+        <div *ngIf="msg.username !== username" class="suggestion-area">
+          <button (click)="askForHelp(msg.id)" class="btn-help" *ngIf="!suggestionsMap[msg.id]">
+            {{ loadingSuggestionId === msg.id ? 'Thinking...' : '💡 Suggest' }}
+          </button>
+          <div *ngIf="suggestionsMap[msg.id]" class="suggestions-box">
+            <small><strong>AI Suggestions:</strong></small>
+            <ul>
+              <li *ngFor="let idea of suggestionsMap[msg.id]">{{ idea }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input Footer -->
+  <footer class="message-form-container">
+    <div class="current-user-avatar">{{ username.charAt(0) }}</div>
+    <form (submit)="sendMessage()">
+      <textarea class="chat-input" [placeholder]="'Type your argument as ' + username + '...'"
+        [(ngModel)]="newMessageContent" name="newMessageContent" (keydown)="onKeydown($event)" rows="1"></textarea>
+      <button type="submit" [disabled]="!newMessageContent.trim()"></button>
+    </form>
+  </footer>
+
+  <!-- Winner Modal -->
+  <div class="winner-overlay" *ngIf="showWinnerModal">
+    <div class="winner-card-popup">
+      <div class="trophy-icon">🏆</div>
+      <h2>DEBATE FINISHED</h2>
+      <div class="winner-announce">
+        <span *ngIf="winnerName !== 'Draw'" class="the-winner">Winner: {{ winnerName }}</span>
+        <span *ngIf="winnerName === 'Draw'" class="the-winner">It's a Draw!</span>
+      </div>
+      <div class="final-score-display">
+        <span>{{ playerA }} ({{ scoreA }})</span>
+        <span class="vs-text"> vs </span>
+        <span>{{ playerB }} ({{ scoreB }})</span>
+      </div>
+      <p class="winner-subtext">{{ winnerMessage }}</p>
+      <div class="modal-actions">
+        <button (click)="cancelFinish()" class="btn-modal-secondary">Continue</button>
+        <button (click)="confirmReset()" class="btn-modal-primary">End & Reset</button>
+      </div>
+    </div>
+  </div>
+
+</div>

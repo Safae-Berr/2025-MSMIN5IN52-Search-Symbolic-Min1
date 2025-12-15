@@ -1,0 +1,64 @@
+<div class="page-container">
+  
+  <header class="header-section">
+    <h1>Debate Arena from Debat AI</h1>
+    <p>Sélectionnez un sujet pour commencer un nouveau débat.</p>
+  </header>
+
+  <div class="view-controls" *ngIf="debates.length > 0">
+    <button (click)="setViewMode('grid')" [class.active]="viewMode === 'grid'">Grid</button>
+    <button (click)="setViewMode('list')" [class.active]="viewMode === 'list'">List</button>
+  </div>
+
+  <div *ngIf="debates.length === 0" class="loading-container">
+    <p>Loading topics...</p>
+  </div>
+
+  <!-- Grid View -->
+  <main class="topics-grid" *ngIf="viewMode === 'grid' && debates.length > 0">
+    <div *ngFor="let debate of debates" class="topic-card" (click)="openSetup(debate)">
+      <div>
+        <h3 class="card-title">{{ debate.topic }}</h3>
+        <span class="selection-count">Selected {{ debate.selectionCount }} times</span>
+      </div>
+      <div class="card-footer">
+        <span>Start Match &rarr;</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- List View -->
+  <main class="topics-list" *ngIf="viewMode === 'list' && debates.length > 0">
+    <div *ngFor="let debate of debates" class="topic-list-item" (click)="openSetup(debate)">
+      <h3 class="list-item-title">{{ debate.topic }}</h3>
+      <div class="list-item-details">
+        <span class="selection-count">Selected {{ debate.selectionCount }} times</span>
+        <span>Start Match &rarr;</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODALE DE CONFIGURATION (Le Setup) -->
+  <div class="modal-overlay" *ngIf="selectedDebate" (click)="closeSetup()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <h3>Setup the Debate</h3>
+      <p class="topic-preview">Topic: <strong>{{ selectedDebate.topic }}</strong></p>
+
+      <div class="input-group">
+        <label>🔵 Team / Debater A (Pro)</label>
+        <input type="text" [(ngModel)]="debaterA" placeholder="Ex: Alice">
+      </div>
+
+      <div class="input-group">
+        <label>🔴 Team / Debater B (Con)</label>
+        <input type="text" [(ngModel)]="debaterB" placeholder="Ex: Bob">
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" (click)="closeSetup()">Cancel</button>
+        <button class="btn-start" (click)="startDebate()">⚔️ ENTER ARENA</button>
+      </div>
+    </div>
+  </div>
+
+</div>
